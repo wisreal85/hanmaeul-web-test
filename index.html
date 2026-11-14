@@ -2,48 +2,151 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-visual">
   <meta name="robots" content="noindex">
   <title>한마을 · 테스트 버전</title>
   <link rel="shortcut icon" href="TemplateData/favicon.ico">
   <style>
-    html, body { margin: 0; height: 100%; background: #2b2420; overflow: hidden; font-family: system-ui, sans-serif; }
-    #stage { height: 100%; display: flex; align-items: center; justify-content: center; }
-    /* 폰 비율(390x844)을 유지하고, 폰 화면에서는 꽉 채운다 */
-    #frame { position: relative; height: min(100vh, 900px); aspect-ratio: 390 / 844; max-width: 100vw; background: #FFF8F0; }
-    @media (max-aspect-ratio: 1/1) and (max-width: 600px) { #frame { height: 100%; width: 100%; aspect-ratio: auto; } }
+    /* 키보드가 올라와도 페이지가 밀리거나 줄어들지 않게 화면을 고정한다 */
+    html, body { margin: 0; position: fixed; inset: 0; width: 100%; height: 100%; background: #2b2420; overflow: hidden; overscroll-behavior: none; font-family: system-ui, sans-serif; -webkit-tap-highlight-color: transparent; }
+    #stage { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+    #frame { position: relative; height: min(100%, 900px); aspect-ratio: 390 / 844; max-width: 100%; background: #FFFFFF; overflow: hidden; }
+    @media (max-width: 600px) { #frame { width: 100%; height: var(--app-h, 100%); aspect-ratio: auto; max-width: none; } }
     canvas { width: 100%; height: 100%; display: block; touch-action: none; }
-    #loading { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #FFF8F0; color: #E8743B; font-weight: 700; }
-    #loading .bar { width: 55%; height: 8px; border-radius: 4px; background: #F0E2D3; margin-top: 18px; overflow: hidden; }
-    #loading .bar i { display: block; height: 100%; width: 0; background: #E8743B; }
-    #loading small { color: #9A8B80; font-weight: 400; margin-top: 14px; }
-    #err { position: absolute; left: 12px; right: 12px; bottom: 12px; background: #C0392B; color: #fff; padding: 10px; border-radius: 8px; display: none; font-size: 13px; }
+    #loading { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #FFFFFF; color: #3B4890; font-weight: 700; z-index: 20; }
+    #loading .bar { width: 55%; height: 8px; border-radius: 4px; background: #E6E8F3; margin-top: 18px; overflow: hidden; }
+    #loading .bar i { display: block; height: 100%; width: 0; background: #3B4890; }
+    #loading small { color: #9A9A9A; font-weight: 400; margin-top: 14px; }
+    #err { position: absolute; left: 12px; right: 12px; bottom: 12px; background: #C8102E; color: #fff; padding: 10px; border-radius: 4px; display: none; font-size: 13px; z-index: 30; }
+
+    /* Unity 입력칸 위에 덮는 투명 터치 영역 */
+    .hit { position: absolute; background: transparent; z-index: 5; cursor: text; touch-action: manipulation; }
+
+    /* 글자 입력창: 보이는 화면(키보드 위) 맨 위에 붙는다 */
+    #sheet { position: fixed; left: 0; top: 0; width: 100%; height: 100%; z-index: 100; background: rgba(0,0,0,.45); display: none; }
+    #sheet.on { display: block; }
+    #sheet .panel { background: #fff; padding: 12px 14px 14px; box-shadow: 0 4px 14px rgba(0,0,0,.25); }
+    #sheet label { display: block; font-size: 13px; font-weight: 700; color: #3B4890; margin-bottom: 8px; }
+    #sheet input { box-sizing: border-box; width: 100%; height: 46px; font-size: 16px; /* 16px 미만이면 iOS가 확대한다 */ padding: 0 12px; border: 2px solid #3B4890; border-radius: 2px; outline: none; background: #fff; color: #222; }
+    #sheet .btns { display: flex; gap: 8px; margin-top: 10px; }
+    #sheet button { flex: 1; height: 42px; font-size: 15px; font-weight: 700; border-radius: 2px; border: 1px solid #BDBDBD; background: #fff; color: #555; }
+    #sheet button.ok { background: #3B4890; border-color: #3B4890; color: #fff; }
   </style>
 </head>
 <body>
   <div id="stage">
     <div id="frame">
       <canvas id="unity-canvas" tabindex="-1"></canvas>
-      <div id="loading"><div style="font-size:28px">한마을</div><div class="bar"><i id="bar"></i></div><small>처음에는 30MB 정도 내려받아요</small></div>
+      <div id="loading"><div style="font-size:28px;font-style:italic">한마을</div><div class="bar"><i id="bar"></i></div><small>처음에는 35MB 정도 내려받아요</small></div>
       <div id="err"></div>
     </div>
   </div>
+
+  <div id="sheet">
+    <div class="panel">
+      <label id="sheet-label"></label>
+      <input id="sheet-input" type="text" enterkeyhint="done" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <div class="btns"><button id="sheet-cancel" type="button">취소</button><button id="sheet-ok" class="ok" type="button">확인</button></div>
+    </div>
+  </div>
+
   <script>
+    var unityInstance = null;
+
+    /* ── 화면 높이 고정: 키보드가 올라와 높이가 줄어도 값을 바꾸지 않는다 ── */
+    (function () {
+      var lastW = window.innerWidth, appH = window.innerHeight;
+      function apply() { document.documentElement.style.setProperty("--app-h", appH + "px"); }
+      apply();
+      window.addEventListener("resize", function () {
+        // 가로폭이 바뀌었거나(회전) 높이가 늘어난 경우에만 갱신한다. 키보드 때문에 줄어든 건 무시한다.
+        if (window.innerWidth !== lastW || window.innerHeight > appH) { lastW = window.innerWidth; appH = window.innerHeight; apply(); }
+      });
+      window.addEventListener("orientationchange", function () { setTimeout(function () { lastW = window.innerWidth; appH = window.innerHeight; apply(); }, 300); });
+    })();
+
+    /* ── Unity 입력칸을 브라우저 입력창으로 대신 받기 ── */
+    var HanInput = (function () {
+      var frame = document.getElementById("frame");
+      var sheet = document.getElementById("sheet");
+      var input = document.getElementById("sheet-input");
+      var label = document.getElementById("sheet-label");
+      var current = null;
+
+      function place() {
+        // 키보드를 뺀 '보이는 화면'에 맞춘다 (iOS는 키보드가 올라오면 화면이 위로 밀린다)
+        var vv = window.visualViewport;
+        if (!vv) return;
+        sheet.style.left = vv.offsetLeft + "px"; sheet.style.top = vv.offsetTop + "px";
+        sheet.style.width = vv.width + "px"; sheet.style.height = vv.height + "px";
+      }
+      if (window.visualViewport) { visualViewport.addEventListener("resize", place); visualViewport.addEventListener("scroll", place); }
+
+      function close(send) {
+        if (!current) return;
+        var h = current; current = null;
+        sheet.classList.remove("on");
+        input.blur();
+        if (send && unityInstance) unityInstance.SendMessage("App", "OnWebInput", h.id + "\u0001" + input.value);
+      }
+
+      function open(h) {
+        current = h;
+        label.textContent = h.label;
+        input.value = h.value || "";
+        input.maxLength = h.max > 0 ? h.max : 100;
+        input.inputMode = h.numeric ? "numeric" : "text";
+        input.pattern = h.numeric ? "[0-9]*" : "";
+        place();
+        sheet.classList.add("on");
+        // 사용자가 누른 그 순간(이벤트 안)에 focus 해야 모바일에서 키보드가 열린다
+        input.focus();
+        try { input.setSelectionRange(input.value.length, input.value.length); } catch (e) {}
+      }
+
+      document.getElementById("sheet-ok").addEventListener("click", function () { close(true); });
+      document.getElementById("sheet-cancel").addEventListener("click", function () { close(false); });
+      sheet.addEventListener("pointerdown", function (e) { if (e.target === sheet) { e.preventDefault(); close(false); } });
+      input.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") { e.preventDefault(); close(true); }
+        else if (e.key === "Escape") { e.preventDefault(); close(false); }
+      });
+
+      return {
+        setHits: function (json) {
+          var data; try { data = JSON.parse(json).hits || []; } catch (e) { return; }
+          Array.prototype.slice.call(frame.querySelectorAll(".hit")).forEach(function (n) { n.remove(); });
+          data.forEach(function (h) {
+            var d = document.createElement("div");
+            d.className = "hit";
+            d.style.left = (h.x * 100) + "%"; d.style.top = (h.y * 100) + "%";
+            d.style.width = (h.w * 100) + "%"; d.style.height = (h.h * 100) + "%";
+            d.addEventListener("click", function (e) { e.preventDefault(); open(h); });
+            frame.appendChild(d);
+          });
+        }
+      };
+    })();
+    window.HanInput = HanInput;
+
     var buildUrl = "Build";
     var config = {
       dataUrl: buildUrl + "/WebGL.data",
       frameworkUrl: buildUrl + "/WebGL.framework.js",
       codeUrl: buildUrl + "/WebGL.wasm",
       streamingAssetsUrl: "StreamingAssets",
-      companyName: "HanMaeul", productName: "한마을", productVersion: "0.1",
+      companyName: "HanMaeul", productName: "한마을", productVersion: "0.2",
       showBanner: function (msg, type) { if (type === "error") { var e = document.getElementById("err"); e.style.display = "block"; e.textContent = msg; } }
     };
+    var dprParam = new URLSearchParams(location.search).get("dpr");
+    if (dprParam) config.devicePixelRatio = parseFloat(dprParam);
     var s = document.createElement("script");
     s.src = buildUrl + "/WebGL.loader.js";
     s.onload = function () {
       createUnityInstance(document.getElementById("unity-canvas"), config, function (p) {
         document.getElementById("bar").style.width = (p * 100) + "%";
-      }).then(function () {
+      }).then(function (inst) {
+        unityInstance = inst;
         document.getElementById("loading").style.display = "none";
       }).catch(function (m) { alert(m); });
     };
