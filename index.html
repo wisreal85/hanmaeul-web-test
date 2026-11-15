@@ -37,7 +37,7 @@
   <div id="stage">
     <div id="frame">
       <canvas id="unity-canvas" tabindex="-1"></canvas>
-      <div id="loading"><div style="font-size:28px;font-style:italic">한마을</div><div class="bar"><i id="bar"></i></div><small>처음에는 35MB 정도 내려받아요</small></div>
+      <div id="loading"><div style="font-size:28px;font-style:italic">한마을</div><div class="bar"><i id="bar"></i></div><small>처음에는 8MB 정도 내려받아요</small></div>
       <div id="err"></div>
     </div>
   </div>
@@ -131,9 +131,9 @@
 
     var buildUrl = "Build";
     var config = {
-      dataUrl: buildUrl + "/WebGL.data",
-      frameworkUrl: buildUrl + "/WebGL.framework.js",
-      codeUrl: buildUrl + "/WebGL.wasm",
+      dataUrl: buildUrl + "/WebGL.data.unityweb",
+      frameworkUrl: buildUrl + "/WebGL.framework.js.unityweb",
+      codeUrl: buildUrl + "/WebGL.wasm.unityweb",
       streamingAssetsUrl: "StreamingAssets",
       companyName: "HanMaeul", productName: "한마을", productVersion: "0.2",
       showBanner: function (msg, type) { if (type === "error") { var e = document.getElementById("err"); e.style.display = "block"; e.textContent = msg; } }
