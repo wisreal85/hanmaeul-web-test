@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-visual">
   <meta name="robots" content="noindex">
+  <meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
   <title>한마을 · 테스트 버전</title>
   <link rel="shortcut icon" href="TemplateData/favicon.ico">
   <style>
@@ -130,10 +131,11 @@
     window.HanInput = HanInput;
 
     var buildUrl = "Build";
+    var V = "?v=20261116113019"; // 배포할 때마다 바뀌어 브라우저와 Unity 캐시를 새로 받게 한다
     var config = {
-      dataUrl: buildUrl + "/WebGL.data.unityweb",
-      frameworkUrl: buildUrl + "/WebGL.framework.js.unityweb",
-      codeUrl: buildUrl + "/WebGL.wasm.unityweb",
+      dataUrl: buildUrl + "/WebGL.data.unityweb" + V,
+      frameworkUrl: buildUrl + "/WebGL.framework.js.unityweb" + V,
+      codeUrl: buildUrl + "/WebGL.wasm.unityweb" + V,
       streamingAssetsUrl: "StreamingAssets",
       companyName: "HanMaeul", productName: "한마을", productVersion: "0.2",
       showBanner: function (msg, type) { if (type === "error") { var e = document.getElementById("err"); e.style.display = "block"; e.textContent = msg; } }
@@ -141,7 +143,7 @@
     var dprParam = new URLSearchParams(location.search).get("dpr");
     if (dprParam) config.devicePixelRatio = parseFloat(dprParam);
     var s = document.createElement("script");
-    s.src = buildUrl + "/WebGL.loader.js";
+    s.src = buildUrl + "/WebGL.loader.js" + V;
     s.onload = function () {
       createUnityInstance(document.getElementById("unity-canvas"), config, function (p) {
         document.getElementById("bar").style.width = (p * 100) + "%";
